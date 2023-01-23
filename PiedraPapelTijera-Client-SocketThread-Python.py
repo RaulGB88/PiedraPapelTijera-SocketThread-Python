@@ -7,10 +7,14 @@ from setuptools import sic
 HOST = '127.0.0.1'
 PORT = 5008
 
-NAME = 'Dime tu nombre por favor: '
-PLAY = 'Indica qué quieres jugar: '
-CONTINUE = 'Si quieres terminar de jugar escribe: [bye]: '
+NAME = 'Dime tu nombre por favor ...: '
+CHOOSE = '¿Quieres JUGAR o ver la PUNTUACIÓN? ...: '
+PLAY = 'Indica qué quieres jugar: PIEDRA, PAPEL o TIJERA ...: '
+CONTINUE = 'Si quieres terminar de jugar escribe: [bye] ...: '
 
+PLAYS = 'jugar'
+POINTS = 'puntuacion'
+POINTSS = 'puntuación'
 BYE = 'bye'
 
 
@@ -53,14 +57,8 @@ def treatMessage(message):
 
     send_message = ''
 
-    if message == NAME:
-        send_message = input(NAME)
-        return send_message.lower()
-    elif message == PLAY:
-        send_message = input(PLAY)
-        return send_message.lower()
-    elif message == CONTINUE :
-        send_message = input(CONTINUE)
+    if message == NAME or message == PLAY or message == CONTINUE or message == CHOOSE:
+        send_message = input(message)
         return send_message.lower()
     elif message != '':
         print(message)
