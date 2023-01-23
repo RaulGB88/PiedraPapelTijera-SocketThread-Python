@@ -1,17 +1,21 @@
+from curses import ERR
+from optparse import OptParseError
 import random
 import socket
 import sys
 import threading
+from xxlimited import Str
 
 # Decidimos la IP y el puerto del servidor
 HOST = '127.0.0.1'  # La IP del servidor es la loca de la máquina
 PORT = 5008  # El puerto tiene que ser superior a 1024, por debajo estan reservados
 fin_mensaje = b''
 
-NAME = 'Dime tu nombre por favor: '
-PLAY = 'Indica qué quieres jugar: '
+NAME = 'Dime tu nombre por favor ...: '
+CHOOSE = '¿Quieres JUGAR o ver la PUNTUACIÓN? ...: '
+PLAY = 'Indica qué quieres jugar: PIEDRA, PAPEL o TIJERA ...: '
 ERROR_MESSAGE = 'Error. Se ha producido un error insesperado.'
-CONTINUE = 'Si quieres terminar de jugar escribe: [bye]: '
+CONTINUE = 'Si quieres terminar de jugar escribe: [bye] ...: '
 
 PIEDRA = 'piedra'
 PAPEL = 'papel'
@@ -21,12 +25,19 @@ NOT_GAME = 'Error, introduce un juego válido.'
 WINNER = 'Gana: '
 SAME = 'Empate.'
 MACHINE = 'la máquina.'
+PLAYER_STR = 'jugador'
 
 ERROR = 'ERROR'
+PLAYS = 'jugar'
+POINTS = 'puntuacion'
+POINTSS = 'puntuación'
 BYE = 'bye'
 
+global player_count, machine_count
 
 def server_program():
+
+    global player_count, machine_count
 
     try:
         socket_escucha = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -74,11 +85,12 @@ def execute(lock, socket_atiende, addr_cliente):
         with socket_atiende:
 
             cerrar = False
+            global player_count, machine_count
 
             while not cerrar:
-                # print(f"Conexión exitosa con el cliente. IP ({addr[0]}) Puerto ({addr[1]})")
                 print(f'Conexión exitosa con el cliente. {addr_cliente}')
 
+                # ---- INSCRIBIR ---- #
                 # Get name of Client
                 name = messageRecieved(socket_atiende, NAME)
 
@@ -86,24 +98,64 @@ def execute(lock, socket_atiende, addr_cliente):
                 send_message = f'[{addr_cliente}] Hola: {name}'
                 messageRecieved(socket_atiende, send_message)
 
-                game = ERROR
-                while game == ERROR:
-                    # Get game of Client
-                    play = messageRecieved(socket_atiende, PLAY)
-                    game = playerGame(play)
+                player_count = 0
+                machine_count = 0
 
-                # Send game for play of Client
-                send_message = f'[{addr_cliente}] El jugador: {name} ha elegido: {play}'
-                messageRecieved(socket_atiende, send_message)
-                
-                randomPlay = randomGame()
-                send_message = f'La máquina ha elegido: {randomPlay}'
-                # Send game for play of Machine
-                messageRecieved(socket_atiende, send_message)
+                while player_count < 3 and machine_count < 3:
 
-                winner = executePlay(name, play, randomPlay)
-                # Send winner
-                messageRecieved(socket_atiende, winner)
+                    # ---- ELEGIR ---- #
+                    option_selected = optionMessage(socket_atiende)
+
+                    # ---- PUNTUACIÓN ---- # 
+                    if option_selected == POINTS or option_selected == POINTSS:
+                        points_message = f'Esta es la puntuación actual: JUGADOR/A: ' + str(player_count) + ' - MÁQUINA: ' + str(machine_count)
+                        messageRecieved(socket_atiende, points_message)
+
+                    # ---- JUGADA ---- #     
+                    if option_selected == PLAYS:
+
+                        game = ERROR
+                        while game == ERROR:
+                            # Get game of Client
+                            play = messageRecieved(socket_atiende, PLAY)
+                            game = playerGame(play)
+
+                        # Send game for play of Client
+                        send_message = f'[{addr_cliente}] El jugador/a: {name} ha elegido: {play}'
+                        messageRecieved(socket_atiende, send_message)
+                        
+                        
+                        randomPlay = randomGame()
+                        send_message = f'La máquina ha elegido: {randomPlay}'
+                        messageRecieved(socket_atiende, send_message)
+
+                        # Turn to play player
+                        winner = executePlay(play, randomPlay)
+
+                        # Counter of games
+                        if winner == MACHINE:
+                            machine_count = machine_count + 1
+                        elif winner == PLAYER_STR:
+                            player_count = player_count + 1
+                            winner = name
+
+                        # Send winner
+                        if winner != SAME:
+                            winner = WINNER + winner
+                        else:
+                            winner = SAME
+                        messageRecieved(socket_atiende, winner)
+
+                # Puntuación final
+                points_message = f'Esta es la puntuación final: JUGADOR/A: ' + str(player_count) + ' - MÁQUINA: ' + str(machine_count)
+                messageRecieved(socket_atiende, points_message)
+
+                if machine_count == 3:
+                    points_message = f'Ha ganado la máquina: ' + str(machine_count) + ' a ' + str(player_count)
+                else:
+                    points_message = f'Ha ganado el jugador/a {name}: ' + str(player_count) + ' a ' + str(machine_count)
+
+                messageRecieved(socket_atiende, points_message)
 
                 # Get message to disable of Client
                 message = messageRecieved(socket_atiende, CONTINUE)
@@ -112,20 +164,27 @@ def execute(lock, socket_atiende, addr_cliente):
                     cerrar = True
 
 
-def playerGame(game):
+def optionMessage(socket_atiende):
+    option = ERROR
 
-    game = game.lower()
+    while option == ERROR:
+        option = messageRecieved(socket_atiende, CHOOSE)
+        option = option.lower()
     
-    while game != PIEDRA or game != PAPEL or game != TIJERA:
-        if game == PIEDRA:
-            return game
-        elif game == PAPEL:
-            return game
-        elif game == TIJERA:
-            return game
-        else:
-            game = ERROR
-            return game
+        if option != POINTS and option != POINTSS and option != PLAYS:
+            option = ERROR
+
+    return option
+
+
+def playerGame(game):
+    game = game.lower()
+
+    if game == PIEDRA or game == PAPEL or game == TIJERA:
+        return game
+    else:
+        game = ERROR
+        return game
 
 
 def randomGame():
@@ -144,27 +203,28 @@ def randomGame():
     return game
 
 
-def executePlay(player, play_one, play_two):
-
+def executePlay(play_one, play_two):
+    global player_count, machine_count
     # PIEDRA
     if play_one == PIEDRA and play_two == PIEDRA:
         result = SAME
     elif play_one == PIEDRA and play_two == PAPEL:
-        result = WINNER + MACHINE
+        result = MACHINE
     elif play_one == PIEDRA and play_two == TIJERA:
-        result = WINNER + player
+        result = PLAYER_STR
     # PAPEL
     if play_one == PAPEL and play_two == PIEDRA:
-        result = WINNER + player
+        result = PLAYER_STR
     elif play_one == PAPEL and play_two == PAPEL:
         result = SAME
     elif play_one == PAPEL and play_two == TIJERA:
-        result = WINNER + MACHINE
+        result = MACHINE
     # TIJERA
     if play_one == TIJERA and play_two == PIEDRA:
-        result = WINNER + MACHINE
+        result = MACHINE
     elif play_one == TIJERA and play_two == PAPEL:
-        result = WINNER + player
+        player_count = player_count + 1
+        result = PLAYER_STR
     elif play_one == TIJERA and play_two == TIJERA:
         result = SAME
 
